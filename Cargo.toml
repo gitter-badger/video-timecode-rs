@@ -1,0 +1,10 @@
+[package]
+name = "video-timecode"
+version = "0.1.0"
+authors = ["Björn Lindström <bkhl@elektrubadur.se>"]
+description = "Library for SMPTE timecode manipulation"
+repository = "https://github.com/bkhl/video-timecode-rs"
+readme = "README.md"
+keywords = ["video", "broadcasting", "time", "timecode", "smpte"]
+categories = ["data-structures", "date-and-time", "multimedia::video"]
+license = "MIT"
