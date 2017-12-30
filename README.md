@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/bkhl/video-timecode-rs.svg?branch=master)](https://travis-ci.org/bkhl/video-timecode-rs)
+
 # video-timecode-rs
 
 Rust library for manipulating SMPTE timecodes.
