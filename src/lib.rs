@@ -53,12 +53,7 @@ create_frame_rate!(FrameRate25, 25, 25, false);
 create_frame_rate!(FrameRate30, 30, 30, false);
 create_frame_rate!(FrameRate50, 50, 50, false);
 create_frame_rate!(FrameRate60, 60, 60, false);
-create_frame_rate!(
-    FrameRate2398,
-    24,
-    23.97602397602397602397602397602397602397602397602397602397602397602,
-    true
-);
+create_frame_rate!(FrameRate2398, 24, 24, false);
 create_frame_rate!(
     FrameRate2997,
     30,
