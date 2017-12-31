@@ -2,6 +2,8 @@ extern crate video_timecode;
 
 use video_timecode::*;
 
+// Test creating timecodes with various frame rates and durations.
+
 macro_rules! test_frame_number {
     ($name:ident,
      $hour:expr,
@@ -207,12 +209,12 @@ test_frame_number!(
 );
 test_frame_number!(
     test_frame_number_60_with_hours,
-    5,
-    15,
-    25,
-    12,
+    23,
+    59,
+    59,
+    23,
     FrameRate60,
-    1135512
+    5183963
 );
 
 test_frame_number!(test_frame_number_2398_zero, 0, 0, 0, 0, FrameRate2398, 0);
@@ -328,3 +330,25 @@ test_frame_number!(
     FrameRate5994,
     1134376
 );
+
+// Test adding integers to Timecodes
+
+#[test]
+fn test_add_1() {
+    let tc = Timecode::<FrameRate24>::new(0, 0, 0, 0).unwrap() + 1usize;
+    assert_eq!(tc.hour, 0);
+    assert_eq!(tc.minute, 0);
+    assert_eq!(tc.second, 0);
+    assert_eq!(tc.frame, 1);
+    assert_eq!(tc.frame_number, 1);
+}
+
+#[test]
+fn test_add_500() {
+    let tc = Timecode::<FrameRate24>::new(0, 0, 0, 0).unwrap() + 500u32;
+    assert_eq!(tc.hour, 0);
+    assert_eq!(tc.minute, 0);
+    assert_eq!(tc.second, 20);
+    assert_eq!(tc.frame, 20);
+    assert_eq!(tc.frame_number, 500);
+}
