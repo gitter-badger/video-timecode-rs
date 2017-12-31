@@ -352,3 +352,33 @@ fn test_add_500() {
     assert_eq!(tc.frame, 20);
     assert_eq!(tc.frame_number, 500);
 }
+
+#[test]
+fn test_add_1000_df() {
+    let tc = Timecode::<FrameRate2997>::new(10, 0, 0, 0).unwrap() + 1000u32;
+    assert_eq!(tc.hour, 10);
+    assert_eq!(tc.minute, 0);
+    assert_eq!(tc.second, 33);
+    assert_eq!(tc.frame, 10);
+    assert_eq!(tc.frame_number, 1079920);
+}
+
+#[test]
+fn test_add_negative_2997() {
+    let tc = Timecode::<FrameRate2997>::new(0, 0, 10, 0).unwrap() + (-1000i32);
+    assert_eq!(tc.hour, 23);
+    assert_eq!(tc.minute, 59);
+    assert_eq!(tc.second, 36);
+    assert_eq!(tc.frame, 20);
+    assert_eq!(tc.frame_number, 2588708);
+}
+
+#[test]
+fn test_add_negative_5994() {
+    let tc = Timecode::<FrameRate5994>::new(0, 0, 10, 0).unwrap() + (-1000i32);
+    assert_eq!(tc.hour, 23);
+    assert_eq!(tc.minute, 59);
+    assert_eq!(tc.second, 53);
+    assert_eq!(tc.frame, 20);
+    assert_eq!(tc.frame_number, 5178416);
+}

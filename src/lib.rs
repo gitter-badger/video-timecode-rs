@@ -9,10 +9,7 @@ pub trait FrameRate {
     const DROP_FRAME: bool;
     const FPS_FLOAT: f32;
     const FPS_INT: u32;
-
-    fn max_frames() -> u32 {
-        (Self::FPS_FLOAT * 60.0 * 60.0 * 24.0).round() as u32
-    }
+    const MAX_FRAMES: u32;
 
     fn calculate_frame_number(
         hour: u32,
@@ -38,13 +35,11 @@ pub trait FrameRate {
     }
 
     fn calculate_time_code(mut frame_number: u32) -> (u8, u8, u8, u8) {
-        let max_frames = Self::max_frames();
-
-        if frame_number > max_frames {
+        if frame_number > Self::MAX_FRAMES {
             panic!(
                 "FrameRate {:?} only supports up to {:?} frames.",
                 Self::FPS_FLOAT,
-                max_frames
+                Self::MAX_FRAMES
             );
         }
 
@@ -53,12 +48,12 @@ pub trait FrameRate {
             false => 0,
         };
 
-        let frames_per_10_minutes = (Self::FPS_FLOAT * 600.0).round() as u32;
-        let frames_per_minute = Self::FPS_INT * 60 - drop_frames_per_minute;
-
-        frame_number %= max_frames;
+        frame_number %= Self::MAX_FRAMES;
 
         if Self::DROP_FRAME {
+            let frames_per_minute = Self::FPS_INT * 60 - drop_frames_per_minute;
+            let frames_per_10_minutes =
+                (Self::FPS_FLOAT * 600.0).round() as u32;
             let q = frame_number / frames_per_10_minutes;
             let r = frame_number % frames_per_10_minutes;
             if r > drop_frames_per_minute {
@@ -83,6 +78,7 @@ macro_rules! create_frame_rate {
     ($frame_rate_name:ident,
      $frame_rate_int:expr,
      $frame_rate_float:expr,
+     $max_frames:expr,
      $drop_frame:expr) => (
         #[derive(Debug, PartialEq)]
         pub struct $frame_rate_name;
@@ -91,18 +87,19 @@ macro_rules! create_frame_rate {
             const DROP_FRAME: bool = $drop_frame;
             const FPS_FLOAT: f32 = $frame_rate_float as f32;
             const FPS_INT: u32 = $frame_rate_int;
+            const MAX_FRAMES: u32 = $max_frames;
         }
     )
 }
 
-create_frame_rate!(FrameRate24, 24, 24, false);
-create_frame_rate!(FrameRate25, 25, 25, false);
-create_frame_rate!(FrameRate30, 30, 30, false);
-create_frame_rate!(FrameRate50, 50, 50, false);
-create_frame_rate!(FrameRate60, 60, 60, false);
-create_frame_rate!(FrameRate2398, 24, 24, false);
-create_frame_rate!(FrameRate2997, 30, 30000_f32 / 1001_f32, true);
-create_frame_rate!(FrameRate5994, 60, 60000_f32 / 1001_f32, true);
+create_frame_rate!(FrameRate24, 24, 24, 86400 * 24, false);
+create_frame_rate!(FrameRate25, 25, 25, 86400 * 25, false);
+create_frame_rate!(FrameRate30, 30, 30, 86400 * 30, false);
+create_frame_rate!(FrameRate50, 50, 50, 86400 * 50, false);
+create_frame_rate!(FrameRate60, 60, 60, 86400 * 60, false);
+create_frame_rate!(FrameRate2398, 24, 24, 86400 * 24, false);
+create_frame_rate!(FrameRate2997, 30, 30000_f32 / 1001_f32, 2589408, true);
+create_frame_rate!(FrameRate5994, 60, 60000_f32 / 1001_f32, 5178816, true);
 
 /// Representation of a timecode
 #[derive(Debug, PartialEq)]
@@ -184,16 +181,15 @@ macro_rules! impl_int {
             T: FrameRate,
         {
             fn from(frame_number: $t) -> Timecode<T> {
-                let max_frames = T::max_frames();
                 let mut normalized_frame_number = frame_number;
 
                 #[allow(unused_comparisons)]
                 while normalized_frame_number < 0 {
-                    normalized_frame_number += max_frames as $t;
+                    normalized_frame_number += T::MAX_FRAMES as $t;
                 }
 
-                while normalized_frame_number > max_frames as $t {
-                    normalized_frame_number -= max_frames as $t;
+                while normalized_frame_number > T::MAX_FRAMES as $t {
+                    normalized_frame_number -= T::MAX_FRAMES as $t;
                 }
 
                 let (hour, minute, second, frame) =
