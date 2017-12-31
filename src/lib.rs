@@ -1,7 +1,7 @@
 //!  A library for manipulating SMPTE timecodes.
 
 use std::marker::PhantomData;
-use std::ops::Add;
+use std::ops::{Add, AddAssign};
 
 /// Trait describing frame rates.
 pub trait FrameRate {
@@ -220,6 +220,33 @@ macro_rules! impl_int {
 
             fn add(self, other: $t) -> Timecode<T> {
                 Timecode::<T>::from(self.frame_number as $t + other)
+            }
+        }
+
+        impl<T> AddAssign<$t> for Timecode<T>
+        where
+            T: FrameRate,
+        {
+            fn add_assign(&mut self, other: $t) {
+                let mut normalized_frame_number = self.frame_number as $t + other;
+
+                #[allow(unused_comparisons)]
+                while normalized_frame_number < 0 {
+                    normalized_frame_number += T::MAX_FRAMES as $t;
+                }
+
+                while normalized_frame_number > T::MAX_FRAMES as $t {
+                    normalized_frame_number -= T::MAX_FRAMES as $t;
+                }
+
+                let (hour, minute, second, frame) =
+                    T::calculate_time_code(normalized_frame_number as u32);
+
+                self.hour = hour;
+                self.minute = minute;
+                self.second = second;
+                self.frame = frame;
+                self.frame_number = normalized_frame_number as u32;
             }
         }
     )*)
