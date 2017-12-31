@@ -98,8 +98,20 @@ create_frame_rate!(FrameRate30, 30, 30, 86400 * 30, false);
 create_frame_rate!(FrameRate50, 50, 50, 86400 * 50, false);
 create_frame_rate!(FrameRate60, 60, 60, 86400 * 60, false);
 create_frame_rate!(FrameRate2398, 24, 24, 86400 * 24, false);
-create_frame_rate!(FrameRate2997, 30, 30000_f32 / 1001_f32, 2589408, true);
-create_frame_rate!(FrameRate5994, 60, 60000_f32 / 1001_f32, 5178816, true);
+create_frame_rate!(
+    FrameRate2997,
+    30,
+    30000_f32 / 1001_f32,
+    86400 * 30 - 144 * 18,
+    true
+);
+create_frame_rate!(
+    FrameRate5994,
+    60,
+    60000_f32 / 1001_f32,
+    86400 * 60 - 144 * 36,
+    true
+);
 
 /// Representation of a timecode
 #[derive(Debug, PartialEq)]
