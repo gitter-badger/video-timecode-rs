@@ -1,6 +1,6 @@
 [package]
 name = "video-timecode"
-version = "0.3.1"
+version = "0.3.2-alpha.0"
 authors = ["Björn Lindström <bkhl@elektrubadur.se>"]
 description = "Library for SMPTE timecode manipulation"
 repository = "https://github.com/bkhl/video-timecode-rs"
