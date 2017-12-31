@@ -1,6 +1,5 @@
 //!  A library for manipulating SMPTE timecodes.
 
-use std::convert::Into;
 use std::marker::PhantomData;
 use std::ops::Add;
 
@@ -11,29 +10,45 @@ pub trait FrameRate {
     const FPS_FLOAT: f32;
     const MAX_FRAMES: u32;
 
+    /// Given the elements of a timecode, calculate the frame offset from zero.
     fn calculate_frame_number(
-        hour: u32,
-        minute: u32,
-        second: u32,
-        frame: u32,
-    ) -> Option<u32> {
+        hour: u8,
+        minute: u8,
+        second: u8,
+        frame: u8,
+    ) -> Result<u32, &'static str> {
+        if hour > 23 {
+            return Err("Invalid hour");
+        }
+        if minute > 59 {
+            return Err("Invalid minute");
+        }
+        if second > 59 {
+            return Err("Invalid second");
+        }
+        if frame as u32 > Self::FPS {
+            return Err("Invalid frame");
+        }
+
         let frames_per_minute = Self::FPS * 60;
         let frames_per_hour = frames_per_minute * 60;
 
-        let mut frame_number = (frames_per_hour * hour)
-            + (frames_per_minute * minute)
-            + (Self::FPS * second) + frame;
+        let mut frame_number = (frames_per_hour * hour as u32)
+            + (frames_per_minute * minute as u32)
+            + (Self::FPS * second as u32)
+            + frame as u32;
 
         if Self::DROP_FRAME {
-            let minutes = (60 * hour) + minute;
+            let minutes = (60 * hour as u32) + minute as u32;
             let drop_frames_per_minute =
                 (Self::FPS_FLOAT * (6.0 / 100.0)).round() as u32;
             frame_number -= drop_frames_per_minute * (minutes - (minutes / 10));
         }
 
-        Some(frame_number)
+        Ok(frame_number)
     }
 
+    /// Given a frame number, calculate the fields for a time code.
     fn calculate_time_code(mut frame_number: u32) -> (u8, u8, u8, u8) {
         if frame_number > Self::MAX_FRAMES {
             panic!(
@@ -94,7 +109,7 @@ macro_rules! create_frame_rate {
             const FPS: u32 = $frame_rate;
             const DROP_FRAME: bool = true;
             const FPS_FLOAT: f32 = ((Self::FPS as f32 * 1000.0) / 1001.0);
-            const MAX_FRAMES: u32 = 86400 * Self::FPS 
+            const MAX_FRAMES: u32 = 86400 * Self::FPS
                 - 144 * (18 * (Self::FPS / 30));
         }
     );
@@ -142,41 +157,24 @@ impl<T> Timecode<T> {
     ///
     /// assert_eq!(timecode.frame_number, 864000);
     /// ```
-    pub fn new<U: Into<u8> + Copy>(
-        hour: U,
-        minute: U,
-        second: U,
-        frame: U,
+    pub fn new(
+        hour: u8,
+        minute: u8,
+        second: u8,
+        frame: u8,
     ) -> Result<Timecode<T>, &'static str>
     where
         T: FrameRate,
     {
-        if hour.into() > 23 {
-            return Err("Invalid hour");
-        }
-        if minute.into() > 59 {
-            return Err("Invalid minute");
-        }
-        if second.into() > 59 {
-            return Err("Invalid second");
-        }
-
-        let frame_number = match T::calculate_frame_number(
-            hour.into() as u32,
-            minute.into() as u32,
-            second.into() as u32,
-            frame.into() as u32,
-        ) {
-            Some(frame_number) => frame_number,
-            None => return Err("Invalid frame count"),
-        };
+        let frame_number =
+            T::calculate_frame_number(hour, minute, second, frame)?;
 
         Ok(Timecode {
             frame_number,
-            hour: hour.into(),
-            minute: minute.into(),
-            second: second.into(),
-            frame: frame.into(),
+            hour,
+            minute,
+            second,
+            frame,
             frame_rate: PhantomData,
         })
     }
@@ -226,4 +224,4 @@ macro_rules! impl_int {
         }
     )*)
 }
-impl_int! { usize u32 u64 isize i32 i64 }
+impl_int! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
