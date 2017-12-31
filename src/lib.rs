@@ -6,9 +6,9 @@ use std::ops::Add;
 
 /// Trait describing frame rates.
 pub trait FrameRate {
+    const FPS: u32;
     const DROP_FRAME: bool;
     const FPS_FLOAT: f32;
-    const FPS_INT: u32;
     const MAX_FRAMES: u32;
 
     fn calculate_frame_number(
@@ -17,12 +17,12 @@ pub trait FrameRate {
         second: u32,
         frame: u32,
     ) -> Option<u32> {
-        let frames_per_minute = Self::FPS_INT * 60;
+        let frames_per_minute = Self::FPS * 60;
         let frames_per_hour = frames_per_minute * 60;
 
         let mut frame_number = (frames_per_hour * hour)
             + (frames_per_minute * minute)
-            + (Self::FPS_INT * second) + frame;
+            + (Self::FPS * second) + frame;
 
         if Self::DROP_FRAME {
             let minutes = (60 * hour) + minute;
@@ -51,7 +51,7 @@ pub trait FrameRate {
         frame_number %= Self::MAX_FRAMES;
 
         if Self::DROP_FRAME {
-            let frames_per_minute = Self::FPS_INT * 60 - drop_frames_per_minute;
+            let frames_per_minute = Self::FPS * 60 - drop_frames_per_minute;
             let frames_per_10_minutes =
                 (Self::FPS_FLOAT * 600.0).round() as u32;
             let q = frame_number / frames_per_10_minutes;
@@ -65,53 +65,49 @@ pub trait FrameRate {
             }
         }
 
-        let frame = frame_number % Self::FPS_INT;
-        let second = (frame_number / Self::FPS_INT) % 60;
-        let minute = ((frame_number / Self::FPS_INT) / 60) % 60;
-        let hour = ((frame_number / Self::FPS_INT) / 60) / 60;
+        let frame = frame_number % Self::FPS;
+        let second = (frame_number / Self::FPS) % 60;
+        let minute = ((frame_number / Self::FPS) / 60) % 60;
+        let hour = ((frame_number / Self::FPS) / 60) / 60;
 
         (hour as u8, minute as u8, second as u8, frame as u8)
     }
 }
 
 macro_rules! create_frame_rate {
-    ($frame_rate_name:ident,
-     $frame_rate_int:expr,
-     $frame_rate_float:expr,
-     $max_frames:expr,
-     $drop_frame:expr) => (
+    ($frame_rate_name:ident, $frame_rate:expr, false) => (
         #[derive(Debug, PartialEq)]
         pub struct $frame_rate_name;
 
         impl FrameRate for $frame_rate_name {
-            const DROP_FRAME: bool = $drop_frame;
-            const FPS_FLOAT: f32 = $frame_rate_float as f32;
-            const FPS_INT: u32 = $frame_rate_int;
-            const MAX_FRAMES: u32 = $max_frames;
+            const FPS: u32 = $frame_rate;
+            const DROP_FRAME: bool = false;
+            const FPS_FLOAT: f32 = Self::FPS as f32;
+            const MAX_FRAMES: u32 = 86400 * Self::FPS;
         }
-    )
+    );
+    ($frame_rate_name:ident, $frame_rate:expr, true) => (
+        #[derive(Debug, PartialEq)]
+        pub struct $frame_rate_name;
+
+        impl FrameRate for $frame_rate_name {
+            const FPS: u32 = $frame_rate;
+            const DROP_FRAME: bool = true;
+            const FPS_FLOAT: f32 = ((Self::FPS as f32 * 1000.0) / 1001.0);
+            const MAX_FRAMES: u32 = 86400 * Self::FPS 
+                - 144 * (18 * (Self::FPS / 30));
+        }
+    );
 }
 
-create_frame_rate!(FrameRate24, 24, 24, 86400 * 24, false);
-create_frame_rate!(FrameRate25, 25, 25, 86400 * 25, false);
-create_frame_rate!(FrameRate30, 30, 30, 86400 * 30, false);
-create_frame_rate!(FrameRate50, 50, 50, 86400 * 50, false);
-create_frame_rate!(FrameRate60, 60, 60, 86400 * 60, false);
-create_frame_rate!(FrameRate2398, 24, 24, 86400 * 24, false);
-create_frame_rate!(
-    FrameRate2997,
-    30,
-    30000_f32 / 1001_f32,
-    86400 * 30 - 144 * 18,
-    true
-);
-create_frame_rate!(
-    FrameRate5994,
-    60,
-    60000_f32 / 1001_f32,
-    86400 * 60 - 144 * 36,
-    true
-);
+create_frame_rate!(FrameRate24, 24, false);
+create_frame_rate!(FrameRate25, 25, false);
+create_frame_rate!(FrameRate30, 30, false);
+create_frame_rate!(FrameRate50, 50, false);
+create_frame_rate!(FrameRate60, 60, false);
+create_frame_rate!(FrameRate2398, 24, false);
+create_frame_rate!(FrameRate2997, 30, true);
+create_frame_rate!(FrameRate5994, 60, true);
 
 /// Representation of a timecode
 #[derive(Debug, PartialEq)]
