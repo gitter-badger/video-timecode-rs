@@ -38,6 +38,16 @@ pub trait FrameRate {
     }
 
     fn calculate_time_code(mut frame_number: u32) -> (u8, u8, u8, u8) {
+        let max_frames = Self::max_frames();
+
+        if frame_number > max_frames {
+            panic!(
+                "FrameRate {:?} only supports up to {:?} frames.",
+                Self::FPS_FLOAT,
+                max_frames
+            );
+        }
+
         let drop_frames_per_minute = match Self::DROP_FRAME {
             true => (Self::FPS_FLOAT * (6.0 / 100.0)).round() as u32,
             false => 0,
@@ -45,7 +55,6 @@ pub trait FrameRate {
 
         let frames_per_10_minutes = (Self::FPS_FLOAT * 600.0).round() as u32;
         let frames_per_minute = Self::FPS_INT * 60 - drop_frames_per_minute;
-        let max_frames = Self::max_frames();
 
         frame_number %= max_frames;
 
