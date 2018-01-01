@@ -1,5 +1,7 @@
 extern crate video_timecode;
 
+use std::str::FromStr;
+
 use video_timecode::*;
 
 // Test creating timecodes with various frame rates and durations.
@@ -334,108 +336,201 @@ test_frame_number!(
 // Test adding integers to Timecodes
 
 #[test]
-fn test_add_1() {
+fn test_add_frames_1() {
     let tc = Timecode::<FrameRate24>::new(0, 0, 0, 0).unwrap() + 1usize;
-    assert_eq!(tc.hour, 0);
-    assert_eq!(tc.minute, 0);
-    assert_eq!(tc.second, 0);
-    assert_eq!(tc.frame, 1);
-    assert_eq!(tc.frame_number, 1);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (0, 0, 0, 1, 1)
+    );
 }
 
 #[test]
-fn test_add_500() {
+fn test_add_frames_500() {
     let tc = Timecode::<FrameRate24>::new(0, 0, 0, 0).unwrap() + 500u32;
-    assert_eq!(tc.hour, 0);
-    assert_eq!(tc.minute, 0);
-    assert_eq!(tc.second, 20);
-    assert_eq!(tc.frame, 20);
-    assert_eq!(tc.frame_number, 500);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (0, 0, 20, 20, 500)
+    );
 }
 
 #[test]
-fn test_add_1000_df() {
+fn test_add_frames_1000_df() {
     let tc = Timecode::<FrameRate2997>::new(10, 0, 0, 0).unwrap() + 1000u32;
-    assert_eq!(tc.hour, 10);
-    assert_eq!(tc.minute, 0);
-    assert_eq!(tc.second, 33);
-    assert_eq!(tc.frame, 10);
-    assert_eq!(tc.frame_number, 1079920);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (10, 0, 33, 10, 1079920)
+    );
 }
 
 #[test]
-fn test_add_negative_2997() {
+fn test_add_frames_1000000_df() {
+    let tc = Timecode::<FrameRate2997>::new(10, 0, 0, 0).unwrap() + 1000000u32;
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (19, 16, 6, 22, 2078920)
+    );
+}
+
+#[test]
+fn test_add_frames_negative_2997() {
     let tc = Timecode::<FrameRate2997>::new(0, 0, 10, 0).unwrap() + (-1000i32);
-    assert_eq!(tc.hour, 23);
-    assert_eq!(tc.minute, 59);
-    assert_eq!(tc.second, 36);
-    assert_eq!(tc.frame, 20);
-    assert_eq!(tc.frame_number, 2588708);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (23, 59, 36, 20, 2588708)
+    );
 }
 
 #[test]
-fn test_add_negative_5994() {
+fn test_add_frames_negative_5994() {
     let tc = Timecode::<FrameRate5994>::new(0, 0, 10, 0).unwrap() + (-1000i32);
-    assert_eq!(tc.hour, 23);
-    assert_eq!(tc.minute, 59);
-    assert_eq!(tc.second, 53);
-    assert_eq!(tc.frame, 20);
-    assert_eq!(tc.frame_number, 5178416);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (23, 59, 53, 20, 5178416)
+    );
 }
 
 // Test adding to timecodes with += operator
 
 #[test]
-fn test_add_assign_1() {
+fn test_add_assign_frames_1() {
     let mut tc = Timecode::<FrameRate24>::new(0, 0, 0, 0).unwrap();
     tc += 1usize;
-    assert_eq!(tc.hour, 0);
-    assert_eq!(tc.minute, 0);
-    assert_eq!(tc.second, 0);
-    assert_eq!(tc.frame, 1);
-    assert_eq!(tc.frame_number, 1);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (0, 0, 0, 1, 1)
+    );
 }
 
 #[test]
-fn test_add_assign_500() {
+fn test_add_assign_frames_500() {
     let mut tc = Timecode::<FrameRate24>::new(0, 0, 0, 0).unwrap();
     tc += 500u32;
-    assert_eq!(tc.hour, 0);
-    assert_eq!(tc.minute, 0);
-    assert_eq!(tc.second, 20);
-    assert_eq!(tc.frame, 20);
-    assert_eq!(tc.frame_number, 500);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (0, 0, 20, 20, 500)
+    );
 }
 
 #[test]
-fn test_add_assign_1000_df() {
+fn test_add_assign_frames_1000_df() {
     let mut tc = Timecode::<FrameRate2997>::new(10, 0, 0, 0).unwrap();
     tc += 1000u32;
-    assert_eq!(tc.hour, 10);
-    assert_eq!(tc.minute, 0);
-    assert_eq!(tc.second, 33);
-    assert_eq!(tc.frame, 10);
-    assert_eq!(tc.frame_number, 1079920);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (10, 0, 33, 10, 1079920)
+    );
 }
 
 #[test]
-fn test_add_assign_negative_2997() {
+fn test_add_assign_frames_negative_2997() {
     let mut tc = Timecode::<FrameRate2997>::new(0, 0, 10, 0).unwrap();
     tc += -1000i32;
-    assert_eq!(tc.hour, 23);
-    assert_eq!(tc.minute, 59);
-    assert_eq!(tc.second, 36);
-    assert_eq!(tc.frame, 20);
-    assert_eq!(tc.frame_number, 2588708);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (23, 59, 36, 20, 2588708)
+    );
 }
 
 #[test]
-fn test_add_assign_negative_5994() {
+fn test_add_assign_frames_negative_5994() {
     let mut tc = Timecode::<FrameRate5994>::new(0, 0, 10, 0).unwrap();
     tc += -1000i32;
-    assert_eq!(tc.hour, 23);
-    assert_eq!(tc.minute, 59);
-    assert_eq!(tc.second, 53);
-    assert_eq!(tc.frame, 20);
-    assert_eq!(tc.frame_number, 5178416);
+    assert_eq!(
+        (tc.hour, tc.minute, tc.second, tc.frame, tc.frame_number),
+        (23, 59, 53, 20, 5178416)
+    );
+}
+
+// Test adding Timecodes to Timecodes
+
+#[test]
+fn test_add_timecode_1() {
+    let tc = Timecode::<FrameRate50>::new(0, 0, 0, 0).unwrap()
+        + Timecode::<FrameRate50>::new(0, 0, 0, 1).unwrap();
+    assert_eq!(tc, Timecode::<FrameRate50>::new(0, 0, 0, 1).unwrap());
+}
+
+#[test]
+fn test_add_timecode_500() {
+    let tc = Timecode::<FrameRate24>::new(0, 0, 0, 10).unwrap()
+        + Timecode::<FrameRate24>::new(0, 0, 20, 10).unwrap();
+    assert_eq!(tc, Timecode::<FrameRate24>::new(0, 0, 20, 20).unwrap());
+}
+
+#[test]
+fn test_add_timecode_1000_df() {
+    let tc = Timecode::<FrameRate2997>::new(10, 0, 0, 0).unwrap()
+        + Timecode::<FrameRate2997>::new(0, 0, 33, 10).unwrap();
+    assert_eq!(tc, Timecode::<FrameRate2997>::new(10, 0, 33, 10).unwrap());
+}
+
+#[test]
+fn test_add_timecode_1000000_df() {
+    let tc = Timecode::<FrameRate2997>::new(10, 0, 0, 0).unwrap()
+        + Timecode::<FrameRate2997>::new(9, 16, 6, 22).unwrap();
+    assert_eq!(tc, Timecode::<FrameRate2997>::new(19, 16, 6, 22).unwrap());
+}
+
+// Test parsing
+
+#[test]
+fn test_parse_0() {
+    let tc = Timecode::<FrameRate24>::from_str("00:00:00:00").unwrap();
+    assert_eq!(tc, Timecode::<FrameRate24>::new(0, 0, 0, 0).unwrap());
+}
+
+#[test]
+fn test_parse_0_df_one_semicolon() {
+    let tc = Timecode::<FrameRate2997>::from_str("00:00:00;00").unwrap();
+    assert_eq!(tc, Timecode::<FrameRate2997>::new(0, 0, 0, 0).unwrap());
+}
+
+#[test]
+fn test_parse_0_df_all_semicolon() {
+    let tc = Timecode::<FrameRate2997>::from_str("00;00;00;00").unwrap();
+    assert_eq!(tc, Timecode::<FrameRate2997>::new(0, 0, 0, 0).unwrap());
+}
+
+#[test]
+fn test_parse_0_df_one_dot() {
+    let tc = Timecode::<FrameRate2997>::from_str("00:00:00.00").unwrap();
+    assert_eq!(tc, Timecode::<FrameRate2997>::new(0, 0, 0, 0).unwrap());
+}
+
+#[test]
+fn test_parse_0_df_all_dot() {
+    let tc = Timecode::<FrameRate2997>::from_str("00.00.00.00").unwrap();
+    assert_eq!(tc, Timecode::<FrameRate2997>::new(0, 0, 0, 0).unwrap());
+}
+
+#[test]
+fn test_parse_0_df_mixed() {
+    match Timecode::<FrameRate2997>::from_str("00.00:00.00") {
+        Err(ParseTimecodeError {
+            kind: video_timecode::TimecodeErrorKind::InvalidFormat,
+        }) => {}
+        _ => panic!(),
+    }
+}
+
+#[test]
+fn test_parse_0_df_for_ndf_frame_rate() {
+    match Timecode::<FrameRate24>::from_str("00:00:00;00") {
+        Err(ParseTimecodeError {
+            kind: video_timecode::TimecodeErrorKind::InvalidDropFrameFormat,
+        }) => {}
+        _ => panic!(),
+    }
+}
+
+#[test]
+fn test_parse_500() {
+    let tc = Timecode::<FrameRate24>::from_str("00:00:20:10").unwrap();
+    assert_eq!(tc, Timecode::<FrameRate24>::new(0, 0, 20, 10).unwrap());
+}
+
+#[test]
+fn test_parse_1000000_df() {
+    let tc = Timecode::<FrameRate2997>::from_str("00:00:20:10").unwrap();
+    assert_eq!(tc, Timecode::<FrameRate2997>::new(0, 0, 20, 10).unwrap())
 }

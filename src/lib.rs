@@ -2,6 +2,19 @@
 
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign};
+use std::str::FromStr;
+
+#[derive(Debug)]
+pub struct ParseTimecodeError {
+    pub kind: TimecodeErrorKind,
+}
+
+#[derive(Debug)]
+pub enum TimecodeErrorKind {
+    InvalidFormat,
+    InvalidTimecode,
+    InvalidDropFrameFormat,
+}
 
 /// Trait describing frame rates.
 pub trait FrameRate {
@@ -125,8 +138,37 @@ create_frame_rate!(FrameRate2997, 30, true);
 create_frame_rate!(FrameRate5994, 60, true);
 
 /// Representation of a timecode
+///
+/// **Note**: Currently the user-facing values are open properties. These may
+///           be replaced by getters to facilitate lazy evaluation.
+///
+/// # Example
+///
+/// ```
+/// use video_timecode::*;
+///
+/// let timecode = match Timecode::<FrameRate24>::new(0, 0, 0, 10) {
+///     Ok(tc) => tc,
+///     _ => panic!()
+/// };
+/// assert_eq!(timecode.frame_number, 10);
+///
+/// let timecode = match Timecode::<FrameRate24>::new(0, 0, 10, 0) {
+///     Ok(tc) => tc,
+///     _ => panic!()
+/// };
+/// assert_eq!(timecode.frame_number, 240);
+///
+/// let timecode = Timecode::<FrameRate24>::from(240);
+/// assert_eq!(timecode.hour, 0);
+/// assert_eq!(timecode.minute, 0);
+/// assert_eq!(timecode.second, 10);
+/// assert_eq!(timecode.frame, 0);
+/// assert_eq!(timecode.frame_number, 240);
+//// ```
 #[derive(Debug, PartialEq)]
 pub struct Timecode<FrameRate> {
+    /// Frame number. The count of frames after `00:00:00:00`
     pub frame_number: u32,
     pub hour: u8,
     pub minute: u8,
@@ -136,14 +178,7 @@ pub struct Timecode<FrameRate> {
 }
 
 impl<T> Timecode<T> {
-    /// Returns a timecode with the given properties.
-    ///
-    /// # Arguments
-    ///
-    /// * `hour` - Hour part of timecode
-    /// * `minute` - Minute part of timecode
-    /// * `second` - Second part of timecode
-    /// * `frame` - Frame part of timecode
+    /// Returns a timecode with the given hour/minute/second/frame fields.
     ///
     /// # Example
     ///
@@ -180,13 +215,125 @@ impl<T> Timecode<T> {
     }
 }
 
+impl<T> FromStr for Timecode<T>
+where
+    T: FrameRate,
+{
+    type Err = ParseTimecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use self::TimecodeErrorKind::*;
+
+        let mut colon_notation = false;
+        let mut semi_colon_notation = false;
+        let mut dot_notation = false;
+
+        let mut it = s.chars();
+
+        let hour_string: String = it.by_ref().take(2).collect();
+        let hour: u8 = match hour_string.parse() {
+            Ok(n) if n < 60 => n,
+            _ => {
+                return Err(ParseTimecodeError {
+                    kind: InvalidFormat,
+                });
+            }
+        };
+
+        let minute_sep_char = it.next();
+        match minute_sep_char {
+            Some(':') => colon_notation = true,
+            Some(';') => semi_colon_notation = true,
+            Some('.') => dot_notation = true,
+            _ => {
+                return Err(ParseTimecodeError {
+                    kind: InvalidFormat,
+                });
+            }
+        };
+
+        let minute_string: String = it.by_ref().take(2).collect();
+        let minute: u8 = match minute_string.parse() {
+            Ok(n) if n < 60 => n,
+            _ => {
+                return Err(ParseTimecodeError {
+                    kind: InvalidFormat,
+                });
+            }
+        };
+
+        let second_sep_char = it.next();
+        match second_sep_char {
+            Some(':') if colon_notation => {}
+            Some(';') if semi_colon_notation => {}
+            Some('.') if dot_notation => {}
+            _ => {
+                return Err(ParseTimecodeError {
+                    kind: InvalidFormat,
+                });
+            }
+        }
+
+        let second_string: String = it.by_ref().take(2).collect();
+        let second: u8 = match second_string.parse() {
+            Ok(n) if n < 60 => n,
+            _ => {
+                return Err(ParseTimecodeError {
+                    kind: InvalidFormat,
+                });
+            }
+        };
+
+        let frame_sep_char = it.next();
+        let drop_frame = match frame_sep_char {
+            Some(':') if colon_notation => false,
+            Some(';') if semi_colon_notation || colon_notation => true,
+            Some('.') if dot_notation || colon_notation => true,
+            _ => {
+                return Err(ParseTimecodeError {
+                    kind: InvalidFormat,
+                });
+            }
+        };
+
+        let frame_string: String = it.by_ref().take(2).collect();
+        let frame: u8 = match frame_string.parse() {
+            Ok(n) => n,
+            _ => {
+                return Err(ParseTimecodeError {
+                    kind: InvalidFormat,
+                });
+            }
+        };
+
+        if it.next() != None {
+            return Err(ParseTimecodeError {
+                kind: InvalidFormat,
+            });
+        }
+
+        if drop_frame && !T::DROP_FRAME {
+            return Err(ParseTimecodeError {
+                kind: InvalidDropFrameFormat,
+            });
+        }
+
+        match Timecode::<T>::new(hour, minute, second, frame) {
+            Ok(timecode) => Ok(timecode),
+            Err(_) => Err(ParseTimecodeError {
+                kind: InvalidTimecode,
+            }),
+        }
+    }
+}
+
 macro_rules! impl_int {
     ($($t:ty)*) => ($(
         impl<T> From<$t> for Timecode<T>
         where
             T: FrameRate,
         {
-            fn from(frame_number: $t) -> Timecode<T> {
+            fn from(frame_number: $t) -> Self {
                 let mut normalized_frame_number = frame_number;
 
                 #[allow(unused_comparisons)]
@@ -216,9 +363,9 @@ macro_rules! impl_int {
         where
             T: FrameRate,
         {
-            type Output = Timecode<T>;
+            type Output = Self;
 
-            fn add(self, other: $t) -> Timecode<T> {
+            fn add(self, other: $t) -> Self {
                 Timecode::<T>::from(self.frame_number as $t + other)
             }
         }
@@ -252,3 +399,31 @@ macro_rules! impl_int {
     )*)
 }
 impl_int! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+
+/// Adding timecodes of different framerates together is not supported.
+///
+/// Since adding Timecodes of different frame rates together normally does not make
+/// any sense, it is better that the programmer has to mark this, by explicitly
+/// adding the number of frames.
+///
+/// # Example
+///
+/// ```
+/// use video_timecode::*;
+///
+/// let tc1 = Timecode::<FrameRate2997>::new(0, 0, 0, 0).unwrap();
+/// let tc2 = Timecode::<FrameRate24>::new(0, 0, 10, 0).unwrap();
+/// let tc3 = tc1 + tc2.frame_number;
+///
+/// assert_eq!(tc3, Timecode::<FrameRate2997>::new(0, 0, 8, 0).unwrap());
+/// ```
+impl<T> Add for Timecode<T>
+where
+    T: FrameRate,
+{
+    type Output = Timecode<T>;
+
+    fn add(self, other: Self) -> Self {
+        self + other.frame_number
+    }
+}
