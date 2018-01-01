@@ -1,8 +1,9 @@
 //!  A library for manipulating SMPTE timecodes.
 
-use std::marker::PhantomData;
-use std::ops::{Add, AddAssign};
-use std::str::FromStr;
+use std::fmt;
+use std::marker;
+use std::ops;
+use std::str;
 
 #[derive(Debug)]
 pub struct ParseTimecodeError {
@@ -51,6 +52,7 @@ pub trait FrameRate {
             + (Self::FPS * second as u32)
             + frame as u32;
 
+        // TODO: Replace this stuff with an integer based method.
         if Self::DROP_FRAME {
             let minutes = (60 * hour as u32) + minute as u32;
             let drop_frames_per_minute =
@@ -62,7 +64,7 @@ pub trait FrameRate {
     }
 
     /// Given a frame number, calculate the fields for a time code.
-    fn calculate_time_code(mut frame_number: u32) -> (u8, u8, u8, u8) {
+    fn calculate_time_code(frame_number: u32) -> (u8, u8, u8, u8) {
         if frame_number > Self::MAX_FRAMES {
             panic!(
                 "FrameRate {:?} only supports up to {:?} frames.",
@@ -71,32 +73,65 @@ pub trait FrameRate {
             );
         }
 
-        let drop_frames_per_minute = match Self::DROP_FRAME {
-            true => (Self::FPS_FLOAT * (6.0 / 100.0)).round() as u32,
-            false => 0,
-        };
+        let (hour, minute, second, frame) = if Self::DROP_FRAME {
+            let drop_frames_each_time = (Self::FPS) / 15;
 
-        frame_number %= Self::MAX_FRAMES;
+            let frames_per_minute = Self::FPS * 60;
+            let frames_per_drop_minute =
+                frames_per_minute - drop_frames_each_time;
+            let frames_per_ten =
+                frames_per_minute + (frames_per_drop_minute * 9);
+            let frames_per_hour = frames_per_ten * 6;
 
-        if Self::DROP_FRAME {
-            let frames_per_minute = Self::FPS * 60 - drop_frames_per_minute;
-            let frames_per_10_minutes =
-                (Self::FPS_FLOAT * 600.0).round() as u32;
-            let q = frame_number / frames_per_10_minutes;
-            let r = frame_number % frames_per_10_minutes;
-            if r > drop_frames_per_minute {
-                frame_number += (drop_frames_per_minute * 9 * q)
-                    + drop_frames_per_minute
-                        * ((r - drop_frames_per_minute) / frames_per_minute);
+            let hour = frame_number / frames_per_hour;
+
+            let frame_number_without_hours = frame_number % frames_per_hour;
+            let tens = frame_number_without_hours / frames_per_ten;
+            let frame_number_without_tens =
+                frame_number_without_hours % frames_per_ten;
+
+            let (minute, second, frame) = if frame_number_without_tens
+                < frames_per_minute
+            {
+                let minute = tens * 10;
+                let frame_number_without_minutes = frame_number_without_tens;
+
+                let second = frame_number_without_minutes / Self::FPS;
+
+                let frame = frame_number_without_minutes % Self::FPS;
+
+                (minute, second, frame)
             } else {
-                frame_number += drop_frames_per_minute;
-            }
-        }
+                let frame_number_without_first_minute =
+                    frame_number_without_tens - frames_per_minute;
 
-        let frame = frame_number % Self::FPS;
-        let second = (frame_number / Self::FPS) % 60;
-        let minute = ((frame_number / Self::FPS) / 60) % 60;
-        let hour = ((frame_number / Self::FPS) / 60) / 60;
+                let minute = 1
+                    + (frame_number_without_first_minute
+                        / frames_per_drop_minute);
+
+                let frame_number_without_minutes =
+                    (frame_number_without_first_minute % frames_per_drop_minute)
+                        + drop_frames_each_time;
+
+                let second = frame_number_without_minutes / Self::FPS;
+
+                let frame = frame_number_without_minutes % Self::FPS;
+
+                (tens * 10 + minute, second, frame)
+            };
+
+            (hour, minute, second, frame)
+        } else {
+            let total_seconds = frame_number / Self::FPS;
+            let total_minutes = total_seconds / 60;
+
+            let hour = total_minutes / 60;
+            let minute = total_minutes % 60;
+            let second = total_seconds % 60;
+            let frame = frame_number % Self::FPS;
+
+            (hour, minute, second, frame)
+        };
 
         (hour as u8, minute as u8, second as u8, frame as u8)
     }
@@ -174,7 +209,7 @@ pub struct Timecode<FrameRate> {
     pub minute: u8,
     pub second: u8,
     pub frame: u8,
-    frame_rate: PhantomData<FrameRate>,
+    frame_rate: marker::PhantomData<FrameRate>,
 }
 
 impl<T> Timecode<T> {
@@ -210,12 +245,12 @@ impl<T> Timecode<T> {
             minute,
             second,
             frame,
-            frame_rate: PhantomData,
+            frame_rate: marker::PhantomData,
         })
     }
 }
 
-impl<T> FromStr for Timecode<T>
+impl<T> str::FromStr for Timecode<T>
 where
     T: FrameRate,
 {
@@ -327,6 +362,28 @@ where
     }
 }
 
+impl<T> fmt::Display for Timecode<T>
+where
+    T: FrameRate,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let separator = match T::DROP_FRAME {
+            true => ';',
+            false => ':',
+        };
+
+        write!(
+            f,
+            "{:02}:{:02}:{:02}{}{:02}",
+            self.hour, self.minute, self.second, separator, self.frame
+        )
+    }
+}
+
+trait NormalizeFrameNumber<T> {
+    fn normalize(self, max_frames: T) -> u32;
+}
+
 macro_rules! impl_int {
     ($($t:ty)*) => ($(
         impl<T> From<$t> for Timecode<T>
@@ -334,32 +391,23 @@ macro_rules! impl_int {
             T: FrameRate,
         {
             fn from(frame_number: $t) -> Self {
-                let mut normalized_frame_number = frame_number;
-
-                #[allow(unused_comparisons)]
-                while normalized_frame_number < 0 {
-                    normalized_frame_number += T::MAX_FRAMES as $t;
-                }
-
-                while normalized_frame_number > T::MAX_FRAMES as $t {
-                    normalized_frame_number -= T::MAX_FRAMES as $t;
-                }
+                let new_frame_number = frame_number.normalize(T::MAX_FRAMES as $t);
 
                 let (hour, minute, second, frame) =
-                    T::calculate_time_code(normalized_frame_number as u32);
+                    T::calculate_time_code(new_frame_number);
 
                 Timecode {
-                    frame_number: normalized_frame_number as u32,
+                    frame_number: new_frame_number,
                     hour,
                     minute,
                     second,
                     frame,
-                    frame_rate: PhantomData,
+                    frame_rate: marker::PhantomData,
                 }
             }
         }
 
-        impl<T> Add<$t> for Timecode<T>
+        impl<T> ops::Add<$t> for Timecode<T>
         where
             T: FrameRate,
         {
@@ -370,30 +418,67 @@ macro_rules! impl_int {
             }
         }
 
-        impl<T> AddAssign<$t> for Timecode<T>
+        impl<T> ops::AddAssign<$t> for Timecode<T>
         where
             T: FrameRate,
         {
             fn add_assign(&mut self, other: $t) {
-                let mut normalized_frame_number = self.frame_number as $t + other;
-
-                #[allow(unused_comparisons)]
-                while normalized_frame_number < 0 {
-                    normalized_frame_number += T::MAX_FRAMES as $t;
-                }
-
-                while normalized_frame_number > T::MAX_FRAMES as $t {
-                    normalized_frame_number -= T::MAX_FRAMES as $t;
-                }
+                let new_frame_number = (self.frame_number as $t + other)
+                    .normalize(T::MAX_FRAMES as $t);
 
                 let (hour, minute, second, frame) =
-                    T::calculate_time_code(normalized_frame_number as u32);
+                    T::calculate_time_code(new_frame_number);
 
                 self.hour = hour;
                 self.minute = minute;
                 self.second = second;
                 self.frame = frame;
-                self.frame_number = normalized_frame_number as u32;
+                self.frame_number = new_frame_number;
+            }
+        }
+
+        impl<T> ops::Sub<$t> for Timecode<T>
+        where
+            T: FrameRate,
+        {
+            type Output = Self;
+
+            fn sub(self, other: $t) -> Self {
+                Timecode::<T>::from(self.frame_number as $t - other)
+            }
+        }
+
+        impl<T> ops::SubAssign<$t> for Timecode<T>
+        where
+            T: FrameRate,
+        {
+            fn sub_assign(&mut self, other: $t) {
+                let new_frame_number = (self.frame_number as $t - other)
+                    .normalize(T::MAX_FRAMES as $t);
+
+                let (hour, minute, second, frame) =
+                    T::calculate_time_code(new_frame_number);
+
+                self.hour = hour;
+                self.minute = minute;
+                self.second = second;
+                self.frame = frame;
+                self.frame_number = new_frame_number;
+            }
+        }
+
+        impl NormalizeFrameNumber<$t> for $t {
+            fn normalize(mut self, max_frames: $t) -> u32 {
+                #[allow(unused_comparisons)]
+                while self < 0 {
+                    self += max_frames as $t;
+                }
+
+                while self > max_frames as $t {
+                    self -= max_frames as $t;
+                }
+
+                self as u32
             }
         }
     )*)
@@ -417,7 +502,7 @@ impl_int! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
 ///
 /// assert_eq!(tc3, Timecode::<FrameRate2997>::new(0, 0, 8, 0).unwrap());
 /// ```
-impl<T> Add for Timecode<T>
+impl<T> ops::Add for Timecode<T>
 where
     T: FrameRate,
 {
