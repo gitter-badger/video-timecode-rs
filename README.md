@@ -9,6 +9,3 @@ Rust library for manipulating SMPTE timecodes.
 ## Credits
 
 * Inspired by the timecode library for Python: http://www.davidheidelberger.com/blog/?p=29
-* Used [neo_tc_calc](https://docs.google.com/spreadsheets/d/12MUatPWIHteADCKNIafR25Y8DJr2RPB_xdfjYbjWZwo) a lot for double-checking my tests.
-* Like with the Python library, some of the mathematics are based on this article: [Drop Frame Timecode on David Heidelburger's Blugh](http://www.davidheidelberger.com/blog/?p=29)
-
