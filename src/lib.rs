@@ -380,11 +380,7 @@ where
     }
 }
 
-trait NormalizeFrameNumber<T> {
-    fn normalize(self, max_frames: T) -> u32;
-}
-
-macro_rules! impl_int {
+macro_rules! impl_int_all {
     ($($t:ty)*) => ($(
         impl<T> From<$t> for Timecode<T>
         where
@@ -466,24 +462,43 @@ macro_rules! impl_int {
                 self.frame_number = new_frame_number;
             }
         }
+    )*)
+}
+impl_int_all! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
 
+trait NormalizeFrameNumber<T> {
+    fn normalize(self, max_frames: T) -> u32;
+}
+
+macro_rules! impl_int_unsigned {
+    ($($t:ty)*) => ($(
         impl NormalizeFrameNumber<$t> for $t {
-            fn normalize(mut self, max_frames: $t) -> u32 {
-                #[allow(unused_comparisons)]
-                while self < 0 {
-                    self += max_frames as $t;
-                }
-
-                while self > max_frames as $t {
-                    self -= max_frames as $t;
-                }
-
-                self as u32
+            fn normalize(self, max_frames: $t) -> u32 {
+                (self % max_frames) as u32
             }
         }
     )*)
 }
-impl_int! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+impl_int_unsigned! { usize u8 u16 u32 u64 }
+
+macro_rules! impl_int_signed {
+    ($($t:ty)*) => ($(
+        impl NormalizeFrameNumber<$t> for $t {
+            fn normalize(self, max_frames: $t) -> u32 {
+                let remainder = self % max_frames;
+
+                let result = if remainder < 0 {
+                    remainder + max_frames
+                } else {
+                    remainder
+                };
+
+                result as u32
+            }
+        }
+    )*)
+}
+impl_int_signed! { isize i8 i16 i32 i64 }
 
 /// Adding timecodes of different framerates together is not supported.
 ///
