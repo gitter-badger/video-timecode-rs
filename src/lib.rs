@@ -89,7 +89,7 @@ impl<T> Timecode<T> {
         T: FrameRate,
     {
         let frame_number =
-            T::_calculate_frame_number(hour, minute, second, frame)?;
+            T::calculate_frame_number(hour, minute, second, frame)?;
 
         Ok(Timecode {
             frame_number,
@@ -239,10 +239,10 @@ macro_rules! impl_int_all {
             T: FrameRate,
         {
             fn from(frame_number: $t) -> Self {
-                let new_frame_number = frame_number._normalize(T::MAX_FRAMES as $t);
+                let new_frame_number = frame_number.normalize(T::MAX_FRAMES as $t);
 
                 let (hour, minute, second, frame) =
-                    T::_calculate_time_code(new_frame_number);
+                    T::calculate_time_code(new_frame_number);
 
                 Timecode {
                     frame_number: new_frame_number,
@@ -272,10 +272,10 @@ macro_rules! impl_int_all {
         {
             fn add_assign(&mut self, other: $t) {
                 let new_frame_number = (self.frame_number as $t + other)
-                    ._normalize(T::MAX_FRAMES as $t);
+                    .normalize(T::MAX_FRAMES as $t);
 
                 let (hour, minute, second, frame) =
-                    T::_calculate_time_code(new_frame_number);
+                    T::calculate_time_code(new_frame_number);
 
                 self.hour = hour;
                 self.minute = minute;
@@ -302,10 +302,10 @@ macro_rules! impl_int_all {
         {
             fn sub_assign(&mut self, other: $t) {
                 let new_frame_number = (self.frame_number as $t - other)
-                    ._normalize(T::MAX_FRAMES as $t);
+                    .normalize(T::MAX_FRAMES as $t);
 
                 let (hour, minute, second, frame) =
-                    T::_calculate_time_code(new_frame_number);
+                    T::calculate_time_code(new_frame_number);
 
                 self.hour = hour;
                 self.minute = minute;

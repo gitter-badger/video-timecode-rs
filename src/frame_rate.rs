@@ -11,7 +11,7 @@ pub trait FrameRate {
 
     /// Given the elements of a timecode, calculate the frame offset from zero.
     #[doc(hidden)]
-    fn _calculate_frame_number(
+    fn calculate_frame_number(
         hour: u8,
         minute: u8,
         second: u8,
@@ -51,7 +51,7 @@ pub trait FrameRate {
 
     /// Given a frame number, calculate the fields for a time code.
     #[doc(hidden)]
-    fn _calculate_time_code(frame_number: u32) -> (u8, u8, u8, u8) {
+    fn calculate_time_code(frame_number: u32) -> (u8, u8, u8, u8) {
         if frame_number > Self::MAX_FRAMES {
             panic!(
                 "FrameRate {:?} only supports up to {:?} frames.",
@@ -160,13 +160,13 @@ create_frame_rate!(FrameRate2997, 30, true);
 create_frame_rate!(FrameRate5994, 60, true);
 
 pub trait NormalizeFrameNumber<T> {
-    fn _normalize(self, max_frames: T) -> u32;
+    fn normalize(self, max_frames: T) -> u32;
 }
 
 macro_rules! impl_int_unsigned {
     ($($t:ty)*) => ($(
         impl NormalizeFrameNumber<$t> for $t {
-            fn _normalize(self, max_frames: $t) -> u32 {
+            fn normalize(self, max_frames: $t) -> u32 {
                 (self % max_frames) as u32
             }
         }
@@ -177,7 +177,7 @@ impl_int_unsigned! { usize u8 u16 u32 u64 }
 macro_rules! impl_int_signed {
     ($($t:ty)*) => ($(
         impl NormalizeFrameNumber<$t> for $t {
-            fn _normalize(self, max_frames: $t) -> u32 {
+            fn normalize(self, max_frames: $t) -> u32 {
                 let remainder = self % max_frames;
 
                 let result = if remainder < 0 {
