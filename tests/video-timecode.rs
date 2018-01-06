@@ -466,7 +466,7 @@ fn parse_0_df_all_dot() {
 #[test]
 fn parse_0_df_mixed() {
     match Timecode::<FrameRate2997>::from_str("00.00:00.00") {
-        Err(ParseTimecodeError {
+        Err(TimecodeError {
             kind: video_timecode::TimecodeErrorKind::InvalidFormat,
         }) => {}
         _ => panic!(),
@@ -476,7 +476,7 @@ fn parse_0_df_mixed() {
 #[test]
 fn parse_0_df_for_ndf_frame_rate() {
     match Timecode::<FrameRate24>::from_str("00:00:00;00") {
-        Err(ParseTimecodeError {
+        Err(TimecodeError {
             kind: video_timecode::TimecodeErrorKind::InvalidDropFrameFormat,
         }) => {}
         _ => panic!(),

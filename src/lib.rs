@@ -13,7 +13,7 @@ pub use frame_rate::{FrameRate, FrameRate2398, FrameRate24, FrameRate25,
 use frame_rate::NormalizeFrameNumber;
 
 #[derive(Debug)]
-pub struct ParseTimecodeError {
+pub struct TimecodeError {
     pub kind: TimecodeErrorKind,
 }
 
@@ -106,7 +106,7 @@ impl<T> str::FromStr for Timecode<T>
 where
     T: FrameRate,
 {
-    type Err = ParseTimecodeError;
+    type Err = TimecodeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use self::TimecodeErrorKind::*;
@@ -121,7 +121,7 @@ where
         let hour: u8 = match hour_string.parse() {
             Ok(n) if n < 60 => n,
             _ => {
-                return Err(ParseTimecodeError {
+                return Err(TimecodeError {
                     kind: InvalidFormat,
                 });
             }
@@ -133,7 +133,7 @@ where
             Some(';') => semi_colon_notation = true,
             Some('.') => dot_notation = true,
             _ => {
-                return Err(ParseTimecodeError {
+                return Err(TimecodeError {
                     kind: InvalidFormat,
                 });
             }
@@ -143,7 +143,7 @@ where
         let minute: u8 = match minute_string.parse() {
             Ok(n) if n < 60 => n,
             _ => {
-                return Err(ParseTimecodeError {
+                return Err(TimecodeError {
                     kind: InvalidFormat,
                 });
             }
@@ -155,7 +155,7 @@ where
             Some(';') if semi_colon_notation => {}
             Some('.') if dot_notation => {}
             _ => {
-                return Err(ParseTimecodeError {
+                return Err(TimecodeError {
                     kind: InvalidFormat,
                 });
             }
@@ -165,7 +165,7 @@ where
         let second: u8 = match second_string.parse() {
             Ok(n) if n < 60 => n,
             _ => {
-                return Err(ParseTimecodeError {
+                return Err(TimecodeError {
                     kind: InvalidFormat,
                 });
             }
@@ -177,7 +177,7 @@ where
             Some(';') if semi_colon_notation || colon_notation => true,
             Some('.') if dot_notation || colon_notation => true,
             _ => {
-                return Err(ParseTimecodeError {
+                return Err(TimecodeError {
                     kind: InvalidFormat,
                 });
             }
@@ -187,27 +187,27 @@ where
         let frame: u8 = match frame_string.parse() {
             Ok(n) => n,
             _ => {
-                return Err(ParseTimecodeError {
+                return Err(TimecodeError {
                     kind: InvalidFormat,
                 });
             }
         };
 
         if it.next() != None {
-            return Err(ParseTimecodeError {
+            return Err(TimecodeError {
                 kind: InvalidFormat,
             });
         }
 
         if drop_frame && !T::DROP_FRAME {
-            return Err(ParseTimecodeError {
+            return Err(TimecodeError {
                 kind: InvalidDropFrameFormat,
             });
         }
 
         match Timecode::<T>::new(hour, minute, second, frame) {
             Ok(timecode) => Ok(timecode),
-            Err(_) => Err(ParseTimecodeError {
+            Err(_) => Err(TimecodeError {
                 kind: InvalidTimecode,
             }),
         }
