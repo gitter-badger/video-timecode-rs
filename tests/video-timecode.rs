@@ -266,9 +266,9 @@ test_factories!(
     23,
     23,
     23,
-    23,
+    1,
     FrameRate2997,
-    2523587
+    2523565
 );
 
 test_factories!(frame_number_5994_zero, 0, 0, 0, 0, FrameRate5994, 0);
@@ -308,6 +308,27 @@ test_factories!(
     FrameRate5994,
     1134376
 );
+
+#[test]
+fn dropped_timecode_2997() {
+    match Timecode::<FrameRate2997>::new(23, 23, 00, 1) {
+        Err(TimecodeError {
+            kind: video_timecode::TimecodeErrorKind::InvalidTimecode,
+        }) => {}
+        _ => panic!(),
+    }
+}
+
+#[test]
+fn dropped_timecode_5994() {
+    match Timecode::<FrameRate5994>::new(10, 01, 00, 3) {
+        Err(TimecodeError {
+            kind: video_timecode::TimecodeErrorKind::InvalidTimecode,
+        }) => {}
+        _ => panic!(),
+    }
+}
+
 
 // Test adding integers to Timecodes
 

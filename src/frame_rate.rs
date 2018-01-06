@@ -1,52 +1,57 @@
 /// Trait describing frame rates.
 pub trait FrameRate {
     const FPS: u32;
+
     const DROP_FRAME: bool;
 
     #[doc(hidden)]
     const MAX_FRAMES: u32;
 
     #[doc(hidden)]
-    const FPS_FLOAT: f32;
+    const FRAMES_PER_MINUTE: u32 = Self::FPS * 60;
+
+    #[doc(hidden)]
+    const FRAMES_PER_HOUR: u32 = Self::FRAMES_PER_MINUTE * 60;
+
+    #[doc(hidden)]
+    const DROP_FRAME_COUNT: u32 = Self::FPS / 15;
 
     /// Given the elements of a timecode, calculate the frame offset from zero.
     #[doc(hidden)]
     fn calculate_frame_number(
-        hour: u8,
-        minute: u8,
-        second: u8,
-        frame: u8,
-    ) -> Result<u32, &'static str> {
-        if hour > 23 {
-            return Err("Invalid hour");
-        }
-        if minute > 59 {
-            return Err("Invalid minute");
-        }
-        if second > 59 {
-            return Err("Invalid second");
-        }
-        if frame as u32 > Self::FPS {
-            return Err("Invalid frame");
+        hour: u32,
+        minute: u32,
+        second: u32,
+        frame: u32,
+    ) -> Option<u32> {
+        if hour > 23 || minute > 59 || second > 59 || frame > Self::FPS
+            || (Self::DROP_FRAME && second == 0 && minute % 10 != 0
+                && frame < Self::DROP_FRAME_COUNT)
+        {
+            return None;
         }
 
-        let frames_per_minute = Self::FPS * 60;
-        let frames_per_hour = frames_per_minute * 60;
+        let frame_number_before_drop_frames =
+            (Self::FRAMES_PER_HOUR * hour as u32)
+                + (Self::FRAMES_PER_MINUTE * minute as u32)
+                + (Self::FPS * second as u32) + frame as u32;
 
-        let mut frame_number = (frames_per_hour * hour as u32)
-            + (frames_per_minute * minute as u32)
-            + (Self::FPS * second as u32)
-            + frame as u32;
+        let frame_number = if Self::DROP_FRAME {
+            let tens = hour * 6 + minute / 10;
+            let minutes_without_tens = minute % 10;
+            let drop_frame_minutes_without_tens = if minutes_without_tens > 1 {
+                minutes_without_tens
+            } else {
+                0
+            };
+            let drop_frames_per_ten = Self::DROP_FRAME_COUNT * 9;
+            frame_number_before_drop_frames - (tens * drop_frames_per_ten)
+                - drop_frame_minutes_without_tens * Self::DROP_FRAME_COUNT
+        } else {
+            frame_number_before_drop_frames
+        };
 
-        // TODO: Replace this stuff with an integer based method.
-        if Self::DROP_FRAME {
-            let minutes = (60 * hour as u32) + minute as u32;
-            let drop_frames_per_minute =
-                (Self::FPS_FLOAT * (6.0 / 100.0)).round() as u32;
-            frame_number -= drop_frames_per_minute * (minutes - (minutes / 10));
-        }
-
-        Ok(frame_number)
+        Some(frame_number)
     }
 
     /// Given a frame number, calculate the fields for a time code.
@@ -54,20 +59,16 @@ pub trait FrameRate {
     fn calculate_time_code(frame_number: u32) -> (u8, u8, u8, u8) {
         if frame_number > Self::MAX_FRAMES {
             panic!(
-                "FrameRate {:?} only supports up to {:?} frames.",
-                Self::FPS_FLOAT,
+                "Frame rate only supports up to {:?} frames.",
                 Self::MAX_FRAMES
             );
         }
 
         let (hour, minute, second, frame) = if Self::DROP_FRAME {
-            let drop_frames_each_time = (Self::FPS) / 15;
-
-            let frames_per_minute = Self::FPS * 60;
             let frames_per_drop_minute =
-                frames_per_minute - drop_frames_each_time;
+                Self::FRAMES_PER_MINUTE - Self::DROP_FRAME_COUNT;
             let frames_per_ten =
-                frames_per_minute + (frames_per_drop_minute * 9);
+                Self::FRAMES_PER_MINUTE + (frames_per_drop_minute * 9);
             let frames_per_hour = frames_per_ten * 6;
 
             let hour = frame_number / frames_per_hour;
@@ -78,7 +79,7 @@ pub trait FrameRate {
                 frame_number_without_hours % frames_per_ten;
 
             let (minute, second, frame) = if frame_number_without_tens
-                < frames_per_minute
+                < Self::FRAMES_PER_MINUTE
             {
                 let minute = tens * 10;
                 let frame_number_without_minutes = frame_number_without_tens;
@@ -90,7 +91,7 @@ pub trait FrameRate {
                 (minute, second, frame)
             } else {
                 let frame_number_without_first_minute =
-                    frame_number_without_tens - frames_per_minute;
+                    frame_number_without_tens - Self::FRAMES_PER_MINUTE;
 
                 let minute = 1
                     + (frame_number_without_first_minute
@@ -98,7 +99,7 @@ pub trait FrameRate {
 
                 let frame_number_without_minutes =
                     (frame_number_without_first_minute % frames_per_drop_minute)
-                        + drop_frames_each_time;
+                        + Self::DROP_FRAME_COUNT;
 
                 let second = frame_number_without_minutes / Self::FPS;
 
@@ -132,7 +133,6 @@ macro_rules! create_frame_rate {
         impl FrameRate for $frame_rate_name {
             const FPS: u32 = $frame_rate;
             const DROP_FRAME: bool = false;
-            const FPS_FLOAT: f32 = Self::FPS as f32;
             const MAX_FRAMES: u32 = 86400 * Self::FPS;
         }
     );
@@ -143,7 +143,6 @@ macro_rules! create_frame_rate {
         impl FrameRate for $frame_rate_name {
             const FPS: u32 = $frame_rate;
             const DROP_FRAME: bool = true;
-            const FPS_FLOAT: f32 = ((Self::FPS as f32 * 1000.0) / 1001.0);
             const MAX_FRAMES: u32 = 86400 * Self::FPS
                 - 144 * (18 * (Self::FPS / 30));
         }

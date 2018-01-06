@@ -84,21 +84,32 @@ impl<T> Timecode<T> {
         minute: u8,
         second: u8,
         frame: u8,
-    ) -> Result<Timecode<T>, &'static str>
+    ) -> Result<Timecode<T>, TimecodeError>
     where
         T: FrameRate,
     {
-        let frame_number =
-            T::calculate_frame_number(hour, minute, second, frame)?;
+        use self::TimecodeErrorKind::*;
 
-        Ok(Timecode {
-            frame_number,
-            hour,
-            minute,
-            second,
-            frame,
-            frame_rate: marker::PhantomData,
-        })
+        let result = T::calculate_frame_number(
+            hour as u32,
+            minute as u32,
+            second as u32,
+            frame as u32,
+        );
+
+        match result {
+            Some(frame_number) => Ok(Timecode {
+                frame_number,
+                hour,
+                minute,
+                second,
+                frame,
+                frame_rate: marker::PhantomData,
+            }),
+            None => Err(TimecodeError {
+                kind: InvalidTimecode,
+            }),
+        }
     }
 }
 
