@@ -8,4 +8,4 @@ Rust library for manipulating SMPTE timecodes.
 
 ## Credits
 
-* Inspired by the timecode library for Python: http://www.davidheidelberger.com/blog/?p=29
+* Inspired by the timecode library for Python: https://github.com/eoyilmaz/timecode
