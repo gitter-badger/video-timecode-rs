@@ -498,7 +498,7 @@ fn parse_0_df_mixed() {
 fn parse_0_df_for_ndf_frame_rate() {
     match Timecode::<FrameRate24>::from_str("00:00:00;00") {
         Err(TimecodeError {
-            kind: video_timecode::TimecodeErrorKind::InvalidDropFrameFormat,
+            kind: video_timecode::TimecodeErrorKind::InvalidFormat,
         }) => {}
         _ => panic!(),
     }

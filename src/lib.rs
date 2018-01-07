@@ -13,15 +13,21 @@ pub use frame_rate::{FrameRate, FrameRate2398, FrameRate24, FrameRate25,
 use frame_rate::NormalizeFrameNumber;
 
 #[derive(Debug)]
+/// All [Result](https://doc.rust-lang.org/std/result/enum.Result.html) values
+/// returned by this library will use this for error values.
 pub struct TimecodeError {
     pub kind: TimecodeErrorKind,
 }
 
 #[derive(Debug)]
+/// Error values for this library.
 pub enum TimecodeErrorKind {
+    /// Timecode parsing failed due to input having an invalid format.
     InvalidFormat,
-    InvalidTimecode,
-    InvalidDropFrameFormat,
+
+    /// Timecode had an invalid value. For instance the frame field might have
+    /// a value higher than the frame rate allows.
+    InvalidTimecode
 }
 
 /// Representation of a timecode
@@ -212,7 +218,7 @@ where
 
         if drop_frame && !T::DROP_FRAME {
             return Err(TimecodeError {
-                kind: InvalidDropFrameFormat,
+                kind: InvalidFormat,
             });
         }
 
