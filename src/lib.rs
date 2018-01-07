@@ -356,3 +356,28 @@ where
         self + other.frame_number
     }
 }
+
+/// Add one timecode to another. The first timecode will have a
+/// `frame_number` that's the sum of the frame numbers of the two timecodes.
+///
+/// Adding timecodes of different framerates together is not supported.
+///
+/// # Example
+///
+/// ```
+/// use video_timecode::*;
+///
+/// let mut tc1 = Timecode::<FrameRate24>::new(0, 0, 10, 0).unwrap();
+/// let tc2 = Timecode::<FrameRate24>::new(0, 0, 10, 0).unwrap();
+/// tc1 += tc2;
+///
+/// assert_eq!(tc1, Timecode::<FrameRate24>::new(0, 0, 20, 0).unwrap());
+/// ```
+impl<T> ops::AddAssign for Timecode<T>
+where
+    T: FrameRate,
+{
+    fn add_assign(&mut self, other: Self) {
+        *self += other.frame_number;
+    }
+}
