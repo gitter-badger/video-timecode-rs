@@ -30,35 +30,36 @@ pub enum TimecodeErrorKind {
     InvalidTimecode
 }
 
-/// Representation of a timecode
+/// Representation of a timecode as a struct, generic over types implementing
+/// the trait [FrameRate](trait.FrameRate.html).
 ///
 /// **Note**: Currently the user-facing values are open properties. These may
 ///           be replaced by getters to facilitate lazy evaluation.
 ///
-/// # Example
-///
 /// ```
 /// use video_timecode::*;
+/// use std::str::FromStr;
 ///
-/// let timecode = match Timecode::<FrameRate24>::new(0, 0, 0, 10) {
-///     Ok(tc) => tc,
-///     _ => panic!()
-/// };
-/// assert_eq!(timecode.frame_number, 10);
+/// let tc1 = Timecode::<FrameRate24>::new(0, 0, 0, 10).unwrap();
+/// assert_eq!(tc1.frame_number, 10);
 ///
-/// let timecode = match Timecode::<FrameRate24>::new(0, 0, 10, 0) {
-///     Ok(tc) => tc,
-///     _ => panic!()
-/// };
-/// assert_eq!(timecode.frame_number, 240);
+/// let tc2 = Timecode::<FrameRate24>::from_str("00:00:10:00").unwrap();
+/// assert_eq!(tc2.frame_number, 240);
 ///
-/// let timecode = Timecode::<FrameRate24>::from(240);
-/// assert_eq!(timecode.hour, 0);
-/// assert_eq!(timecode.minute, 0);
-/// assert_eq!(timecode.second, 10);
-/// assert_eq!(timecode.frame, 0);
-/// assert_eq!(timecode.frame_number, 240);
-//// ```
+/// let mut tc3 = Timecode::<FrameRate24>::from(240);
+/// assert_eq!(tc3.hour, 0);
+/// assert_eq!(tc3.minute, 0);
+/// assert_eq!(tc3.second, 10);
+/// assert_eq!(tc3.frame, 0);
+/// assert_eq!(tc3.frame_number, 240);
+///
+/// tc3 += tc1;
+/// assert_eq!(tc3.hour, 0);
+/// assert_eq!(tc3.minute, 0);
+/// assert_eq!(tc3.second, 10);
+/// assert_eq!(tc3.frame, 10);
+/// assert_eq!(tc3.frame_number, 250);
+/// ```
 #[derive(Debug, PartialEq)]
 pub struct Timecode<FrameRate> {
     /// Frame number. The count of frames after `00:00:00:00`
@@ -73,16 +74,10 @@ pub struct Timecode<FrameRate> {
 impl<T> Timecode<T> {
     /// Returns a timecode with the given hour/minute/second/frame fields.
     ///
-    /// # Example
-    ///
     /// ```
     /// use video_timecode::*;
     ///
-    /// let timecode = match Timecode::<FrameRate24>::new(10, 0, 0, 0) {
-    ///     Ok(tc) => tc,
-    ///     _ => panic!()
-    /// };
-    ///
+    /// let timecode = Timecode::<FrameRate24>::new(10, 0, 0, 0).unwrap();
     /// assert_eq!(timecode.frame_number, 864000);
     /// ```
     pub fn new(
@@ -119,10 +114,80 @@ impl<T> Timecode<T> {
     }
 }
 
+/// Parse a string into a timecode.
+///
+/// Colon separator is alright for all types.
+///
+/// ```
+/// use video_timecode::*;
+/// use std::str::FromStr;
+///
+/// let tc1 = Timecode::<FrameRate24>::from_str("00:00:10:00").unwrap();
+/// assert_eq!(tc1.frame_number, 240);
+///
+/// let tc2 = Timecode::<FrameRate2997>::from_str("00:00:10:00").unwrap();
+/// assert_eq!(tc2.frame_number, 300);
+/// ```
+///
+/// For frame rates with drop frame, the following formats are also allowed:
+///
+/// * `00:00:00;00`
+/// * `00;00;00;00`
+/// * `00.00.00.00`
+/// * `00:00:00.00`
+///
+/// ```
+/// use video_timecode::*;
+/// use std::str::FromStr;
+///
+/// let tc1 = Timecode::<FrameRate2997>::from_str("00:00:10;00").unwrap();
+/// assert_eq!(tc1.frame_number, 300);
+///
+/// let tc2 = Timecode::<FrameRate2997>::from_str("00;00;10;00").unwrap();
+/// assert_eq!(tc2.frame_number, 300);
+///
+/// let tc3 = Timecode::<FrameRate2997>::from_str("00:00:10.00").unwrap();
+/// assert_eq!(tc3.frame_number, 300);
+///
+/// let tc4 = Timecode::<FrameRate2997>::from_str("00.00.10.00").unwrap();
+/// assert_eq!(tc4.frame_number, 300);
+/// ```
 impl<T> str::FromStr for Timecode<T>
 where
     T: FrameRate,
 {
+    /// If parsing fails, a timecode error is returned.
+    ///
+    /// If the input format is invalid in some way, the `TimecodeErrorKind` field
+    /// of the [TimecodeError](struct.TimecodeError.html) will be
+    /// [InvalidFormat](enum.TimecodeErrorKind.html#variant.InvalidFormat).
+    ///
+    /// ```
+    /// use video_timecode::*;
+    /// use video_timecode::TimecodeErrorKind::*;
+    /// use std::str::FromStr;
+    ///
+    /// // Semicolon notation only allowed for drop frame frame rates.
+    /// match Timecode::<FrameRate24>::from_str("00:00:10;00") {
+    ///     Err(TimecodeError { kind: InvalidFormat }) => {}
+    ///     _ => panic!()
+    /// }
+    /// ```
+    ///
+    /// If the timecode is not valid for the given frame rate, it will be
+    /// [InvalidTimecode](enum.TimecodeErrorKind.html#variant.Timecode).
+    ///
+    /// ```
+    /// use video_timecode::*;
+    /// use video_timecode::TimecodeErrorKind::*;
+    /// use std::str::FromStr;
+    ///
+    /// // This is a dropped frame.
+    /// match Timecode::<FrameRate2997>::from_str("00:01:00;00") {
+    ///     Err(TimecodeError { kind: InvalidTimecode }) => {}
+    ///     _ => panic!()
+    /// }
+    /// ```
     type Err = TimecodeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -251,6 +316,7 @@ where
 
 macro_rules! impl_int_all {
     ($($t:ty)*) => ($(
+        /// Create a timecode with the the given frame number.
         impl<T> From<$t> for Timecode<T>
         where
             T: FrameRate,
@@ -272,6 +338,7 @@ macro_rules! impl_int_all {
             }
         }
 
+        /// Make a new timecode by adding a number of frames to a timecode.
         impl<T> ops::Add<$t> for Timecode<T>
         where
             T: FrameRate,
@@ -283,6 +350,7 @@ macro_rules! impl_int_all {
             }
         }
 
+        /// Add a number of frames to a timecode.
         impl<T> ops::AddAssign<$t> for Timecode<T>
         where
             T: FrameRate,
@@ -302,6 +370,7 @@ macro_rules! impl_int_all {
             }
         }
 
+        /// Make a new timecode by removing a number of frames to a timecode.
         impl<T> ops::Sub<$t> for Timecode<T>
         where
             T: FrameRate,
@@ -313,6 +382,7 @@ macro_rules! impl_int_all {
             }
         }
 
+        /// Remove a number of frames from a timecode.
         impl<T> ops::SubAssign<$t> for Timecode<T>
         where
             T: FrameRate,
@@ -335,22 +405,47 @@ macro_rules! impl_int_all {
 }
 impl_int_all! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
 
+/// Make a new timecode by adding two timecodes together. The result is a
+/// timecode where the field `frame_number` is the sum of the frame numbers
+/// of the two added timecodes.
+///
+/// ```
+/// use video_timecode::*;
+///
+/// let tc1 = Timecode::<FrameRate24>::new(0, 0, 20, 0).unwrap();
+/// let tc2 = Timecode::<FrameRate24>::new(0, 0, 10, 0).unwrap();
+/// let tc3 = tc1 + tc2;
+/// assert_eq!(tc3, Timecode::<FrameRate24>::new(0, 0, 30, 0).unwrap());
+/// ```
+///
+/// # Adding Timecodes of different frame rates
+///
 /// Adding timecodes of different framerates together is not supported.
 ///
 /// Since adding Timecodes of different frame rates together normally does not make
 /// any sense, it is better that the programmer has to mark this, by explicitly
 /// adding the number of frames.
 ///
-/// # Example
-///
-/// ```
+/// ```compile_fail
 /// use video_timecode::*;
 ///
 /// let tc1 = Timecode::<FrameRate2997>::new(0, 0, 0, 0).unwrap();
 /// let tc2 = Timecode::<FrameRate24>::new(0, 0, 10, 0).unwrap();
-/// let tc3 = tc1 + tc2.frame_number;
+/// let tc3 = tc1 + tc2;
+/// ```
 ///
-/// assert_eq!(tc3, Timecode::<FrameRate2997>::new(0, 0, 8, 0).unwrap());
+/// # Timecode roll-over
+///
+/// The timecode (including the `frame_number` field) will roll over when the
+/// timecode reaches 24 hours.
+///
+/// ```
+/// use video_timecode::*;
+///
+/// let tc1 = Timecode::<FrameRate24>::new(23, 59, 30, 0).unwrap();
+/// let tc2 = Timecode::<FrameRate24>::new(0, 1, 0, 0).unwrap();
+/// let tc3 = tc1 + tc2;
+/// assert_eq!(tc3, Timecode::<FrameRate24>::new(0, 0, 30, 0).unwrap());
 /// ```
 impl<T> ops::Add for Timecode<T>
 where
@@ -363,12 +458,9 @@ where
     }
 }
 
-/// Add one timecode to another. The first timecode will have a
-/// `frame_number` that's the sum of the frame numbers of the two timecodes.
-///
-/// Adding timecodes of different framerates together is not supported.
-///
-/// # Example
+/// Add one timecode to another, of the same frame rate. The first timecode
+/// will have a `frame_number` that's the sum of the frame numbers of the
+/// two timecodes.
 ///
 /// ```
 /// use video_timecode::*;
